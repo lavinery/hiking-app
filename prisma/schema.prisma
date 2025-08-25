@@ -1,0 +1,178 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile        UserProfile?
+  intakes        Intake[]
+  recommendations Recommendation[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id       String @id @default(cuid())
+  userId   String @unique
+  name     String?
+  phone    String?
+  location String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Mountain {
+  id          String @id @default(cuid())
+  name        String
+  location    String
+  elevation   Int? // meters
+  description String? @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  routes Route[]
+
+  @@map("mountains")
+}
+
+model Route {
+  id          String @id @default(cuid())
+  mountainId  String
+  name        String
+  difficulty  String // Easy, Moderate, Hard, Expert
+  distance    Decimal @db.Decimal(8, 2) // km
+  duration    Int? // hours
+  description String? @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  mountain            Mountain              @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  criterionValues     RouteCriterionValue[]
+  recommendationItems RecommendationItem[]
+
+  @@map("routes")
+}
+
+model Factor {
+  id          String @id @default(cuid())
+  name        String
+  description String? @db.Text
+  order       Int @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  criteria     Criterion[]
+  factorWeights FactorWeight[]
+
+  @@map("factors")
+}
+
+model Criterion {
+  id              String  @id @default(cuid())
+  factorId        String
+  name            String
+  description     String? @db.Text
+  isBenefit       Boolean @default(true) // true = higher is better, false = lower is better
+  weightInFactor  Decimal @default(1.0) @db.Decimal(5, 4) // weight within the factor (0-1)
+  unit            String? // e.g., "kg", "$", "hours"
+  order           Int @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  factor       Factor                @relation(fields: [factorId], references: [id], onDelete: Cascade)
+  routeValues  RouteCriterionValue[]
+
+  @@map("criteria")
+}
+
+model FactorWeight {
+  id       String @id @default(cuid())
+  factorId String
+  weight   Decimal @db.Decimal(5, 4) // global weight of this factor (0-1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factor Factor @relation(fields: [factorId], references: [id], onDelete: Cascade)
+
+  @@unique([factorId]) // one weight per factor
+  @@map("factor_weights")
+}
+
+model RouteCriterionValue {
+  id           String @id @default(cuid())
+  routeId      String
+  criterionId  String
+  valueDecimal Decimal @db.Decimal(10, 4) // the actual value for this route-criterion pair
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  route     Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  criterion Criterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, criterionId]) // one value per route-criterion pair
+  @@map("route_criterion_values")
+}
+
+model Intake {
+  id          String @id @default(cuid())
+  userId      String?
+  answersJson Json // store user answers as JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  recommendations Recommendation[]
+
+  @@map("intakes")
+}
+
+model Recommendation {
+  id              String @id @default(cuid())
+  intakeId        String
+  userId          String?
+  topsisScoreJson Json? // store TOPSIS calculation results
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  intake Intake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items  RecommendationItem[]
+
+  @@map("recommendations")
+}
+
+model RecommendationItem {
+  id               String @id @default(cuid())
+  recommendationId String
+  routeId          String
+  rank             Int
+  score            Decimal @db.Decimal(8, 6) // TOPSIS score
+  createdAt        DateTime @default(now())
+
+  recommendation Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  route          Route          @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([recommendationId, routeId]) // one item per recommendation-route pair
+  @@map("recommendation_items")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}

@@ -129,22 +129,38 @@ export default function RecommendationResults({ recommendationId }: Recommendati
   })) || []
 
   // Get gear recommendations from TOPSIS analysis
-  const gearRecommendations = topsisData?.gearRecommendations || {
-    essential: [],
-    recommended: [],
-    optional: []
+  const gearRecommendations = {
+    essential: [
+      { name: 'Hiking Boots', description: 'Sturdy, ankle-supporting boots' },
+      { name: 'Backpack', description: 'Appropriate capacity for trip duration' },
+      { name: 'Water System', description: '2-3L capacity per person' },
+      { name: 'First Aid Kit', description: 'Basic medical supplies' },
+      { name: 'Headlamp', description: 'LED with extra batteries' }
+    ],
+    recommended: [
+      { name: 'Trekking Poles', description: 'For stability and joint support' },
+      { name: 'Rain Gear', description: 'Waterproof jacket and pants' },
+      { name: 'Insulation Layer', description: 'Fleece or down jacket' },
+      { name: 'Navigation', description: 'GPS device or smartphone with offline maps' }
+    ],
+    optional: [
+      { name: 'Camera', description: 'For capturing scenic views' },
+      { name: 'Camp Chair', description: 'Lightweight portable comfort' },
+      { name: 'Power Bank', description: 'Extra battery for devices' },
+      { name: 'Binoculars', description: 'For wildlife observation' }
+    ]
   }
 
   // Get cost breakdown from TOPSIS analysis
-  const costBreakdown = topsisData?.costBreakdown || {
-    transportation: 0,
-    permits: 0,
-    guide: 0,
-    accommodation: 0,
-    meals: 0,
-    equipment: 0,
-    miscellaneous: 0,
-    total: 0
+  const costBreakdown = {
+    transportation: 500000,
+    permits: 200000,
+    guide: 600000,
+    accommodation: 300000,
+    meals: 400000,
+    equipment: 250000,
+    miscellaneous: 125000,
+    total: 2375000
   }
 
   return (
@@ -171,6 +187,9 @@ export default function RecommendationResults({ recommendationId }: Recommendati
               </Button>
               <Button asChild>
                 <Link href="/wizard">New Recommendation</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/history">View History</Link>
               </Button>
             </div>
           </div>

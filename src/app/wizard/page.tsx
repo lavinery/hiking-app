@@ -656,7 +656,7 @@ export default function WizardPage() {
         </form>
 
         {/* Debug info (development only) */}
-        {process.env.NODE_ENV === 'development' && (
+        {false && process.env.NODE_ENV === 'development' && (
           <div className="mt-8 p-4 bg-muted rounded-lg">
             <h3 className="font-medium mb-2">Debug Info:</h3>
             <div className="text-sm space-y-1">

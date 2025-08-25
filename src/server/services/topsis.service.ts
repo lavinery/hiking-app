@@ -561,4 +561,6 @@ export async function saveTopsisResults(
       score: new Decimal(route.topsisScore)
     }))
   })
+
+  return recommendation.id
 }

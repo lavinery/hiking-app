@@ -1,150 +1,202 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { db } from '@/server/db'
 import { getAuth } from '@/server/auth/auth'
-import { runTopsisAnalysis, saveTopsisResults, type UserPreferences } from '@/server/services/topsis.service'
 
-const createRecommendationSchema = z.object({
-  intakeId: z.string(),
-})
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const validatedData = createRecommendationSchema.parse(body)
-    
-    console.log('Creating recommendations for intake:', validatedData.intakeId)
-    
-    // Get intake with answers
-    const intake = await db.intake.findUnique({
-      where: { id: validatedData.intakeId },
-    })
-
-    if (!intake) {
-      return NextResponse.json(
-        { error: 'Intake not found' },
-        { status: 404 }
-      )
-    }
-
-    // Get current user
-    const session = await getAuth()
-    const userId = session?.user?.id || intake.userId
-
-    // Extract user preferences from intake answers
-    const answers = intake.answersJson as any
-    console.log('Intake answers:', answers)
-
-    const preferences: UserPreferences = {
-      experience_level: answers.hiking_experience || answers.experience_level || 'intermediate',
-      fitness_level: answers.fitness_level || 5,
-      budget_range: answers.budget_range || '1m_2m',
-      time_commitment: answers.time_commitment || '2_days',
-      location: answers.location || 'jakarta',
-      group_size: answers.group_size || 2,
-      interests: answers.interests || [],
-      concerns: answers.concerns || []
-    }
-
-    console.log('Processed preferences:', preferences)
-
-    // Run TOPSIS analysis
-    console.log('Running TOPSIS analysis...')
-    const topsisResult = await runTopsisAnalysis(preferences)
-    
-    console.log(`TOPSIS completed. Found ${topsisResult.routes.length} routes.`)
-
-    // Save results to database
-    const recommendationId = await saveTopsisResults(
-      validatedData.intakeId,
-      userId,
-      topsisResult
-    )
-
-    console.log('Saved recommendation:', recommendationId)
-
-    return NextResponse.json(
-      {
-        id: recommendationId,
-        intakeId: validatedData.intakeId,
-        recommendations: topsisResult,
-        message: 'Recommendations generated successfully using TOPSIS algorithm'
-      },
-      { status: 201 }
-    )
-  } catch (error) {
-    console.error('Error creating recommendation:', error)
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack')
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          error: 'Invalid request data', 
-          details: error.errors 
-        },
-        { status: 400 }
-      )
-    }
-    
-    return NextResponse.json(
-      { 
-        error: 'Failed to generate recommendations',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    )
+interface RouteParams {
+  params: {
+    id: string
   }
 }
 
-export async function GET() {
+export async function GET(
+  request: NextRequest, 
+  { params }: RouteParams
+) {
   try {
-    const session = await getAuth()
+    const recommendationId = params.id
     
-    // Get recent recommendations (with user context if authenticated)
-    const recommendations = await db.recommendation.findMany({
-      where: session?.user?.id ? { userId: session.user.id } : {},
-      orderBy: { createdAt: 'desc' },
-      take: 10,
+    if (!recommendationId) {
+      return NextResponse.json(
+        { error: 'Recommendation ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get current user (optional)
+    const session = await getAuth()
+
+    // Find recommendation with all related data
+    const recommendation = await db.recommendation.findUnique({
+      where: { id: recommendationId },
       include: {
         intake: {
           select: {
             id: true,
+            answersJson: true,
             createdAt: true,
-          }
+            user: {
+              select: {
+                id: true,
+                profile: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
         },
         items: {
           include: {
             route: {
               include: {
-                mountain: true
+                mountain: true,
+                criterionValues: {
+                  include: {
+                    criterion: {
+                      include: {
+                        factor: true
+                      }
+                    }
+                  }
+                }
               }
             }
           },
-          orderBy: { rank: 'asc' },
-          take: 3 // Top 3 items per recommendation
+          orderBy: { rank: 'asc' }
+        }
+      },
+    })
+
+    if (!recommendation) {
+      return NextResponse.json(
+        { error: 'Recommendation not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if user can access this recommendation
+    const canAccess = !recommendation.intake.user?.id || 
+                     recommendation.intake.user.id === session?.user?.id
+
+    if (!canAccess) {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    // Format the response
+    const formattedRoutes = recommendation.items.map(item => ({
+      rank: item.rank,
+      score: item.score.toNumber(),
+      route: {
+        id: item.route.id,
+        name: item.route.name,
+        difficulty: item.route.difficulty,
+        distance: item.route.distance.toNumber(),
+        duration: item.route.duration || 0,
+        description: item.route.description || '',
+        mountain: {
+          id: item.route.mountain.id,
+          name: item.route.mountain.name,
+          location: item.route.mountain.location,
+          elevation: item.route.mountain.elevation || 0,
+          description: item.route.mountain.description || ''
+        },
+        criterionValues: item.route.criterionValues.map(cv => ({
+          criterion: cv.criterion.name,
+          factor: cv.criterion.factor.name,
+          value: cv.valueDecimal.toNumber(),
+          isBenefit: cv.criterion.isBenefit
+        }))
+      }
+    }))
+
+    // Calculate summary
+    const averageScore = formattedRoutes.reduce((sum, route) => sum + route.score, 0) / formattedRoutes.length
+
+    const responseData = {
+      id: recommendation.id,
+      intakeId: recommendation.intakeId,
+      createdAt: recommendation.createdAt.toISOString(),
+      userName: recommendation.intake.user?.profile?.name || 'Anonymous',
+      isOwn: recommendation.intake.user?.id === session?.user?.id,
+      intakeAnswers: recommendation.intake.answersJson,
+      topsisAnalysis: recommendation.topsisScoreJson || {},
+      routes: formattedRoutes,
+      summary: {
+        totalRoutes: formattedRoutes.length,
+        averageScore: Math.round(averageScore * 1000) / 1000,
+        topRoute: formattedRoutes[0]?.route.name || 'No routes found',
+        generatedAt: recommendation.createdAt.toISOString()
+      }
+    }
+
+    return NextResponse.json(responseData)
+  } catch (error) {
+    console.error('Error fetching recommendation:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch recommendation' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: RouteParams
+) {
+  try {
+    const recommendationId = params.id
+    const session = await getAuth()
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    // Find existing recommendation
+    const existingRecommendation = await db.recommendation.findUnique({
+      where: { id: recommendationId },
+      include: {
+        intake: {
+          select: {
+            userId: true
+          }
         }
       }
     })
 
-    const formattedRecommendations = recommendations.map(rec => ({
-      id: rec.id,
-      intakeId: rec.intakeId,
-      createdAt: rec.createdAt,
-      topRoutes: rec.items.map(item => ({
-        rank: item.rank,
-        routeName: item.route.name,
-        mountainName: item.route.mountain.name,
-        score: item.score.toNumber()
-      }))
-    }))
+    if (!existingRecommendation) {
+      return NextResponse.json(
+        { error: 'Recommendation not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check ownership
+    if (existingRecommendation.intake.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    // Delete recommendation (cascade will handle items)
+    await db.recommendation.delete({
+      where: { id: recommendationId }
+    })
 
     return NextResponse.json({
-      recommendations: formattedRecommendations
+      message: 'Recommendation deleted successfully'
     })
   } catch (error) {
-    console.error('Error fetching recommendations:', error)
+    console.error('Error deleting recommendation:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch recommendations' },
+      { error: 'Failed to delete recommendation' },
       { status: 500 }
     )
   }

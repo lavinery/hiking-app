@@ -30,7 +30,7 @@ async function main() {
   const adminUser = await prisma.user.create({
     data: {
       email: 'admin@hiking-gear.com',
-      password: '$2a$10$example.hash', // In real app, this would be hashed
+      password: await bcrypt.hash('password123', 12),
       role: UserRole.ADMIN,
       profile: {
         create: {
@@ -44,7 +44,7 @@ async function main() {
   const testUser = await prisma.user.create({
     data: {
       email: 'hiker@example.com',
-      password: '$2a$10$example.hash',
+      password: await bcrypt.hash('password123', 12),
       role: UserRole.USER,
       profile: {
         create: {

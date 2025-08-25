@@ -42,44 +42,52 @@ export default function HomePage() {
               Gear Recommendation System
             </h1>
             
-            {/* Demo Dialog Button */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Test UI Components
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <form onSubmit={form.handleSubmit(handleSubmit)}>
-                  <DialogHeader>
-                    <DialogTitle>UI Components Demo</DialogTitle>
-                    <DialogDescription>
-                      Testing our Button, Input, and Dialog components with React Hook Form + Zod validation.
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  <div className="space-y-4 py-4">
-                    <Input
-                      label="Name"
-                      placeholder="Enter your name"
-                      {...createFieldProps(form.register, form.formState.errors, 'name')}
-                    />
-                    <Input
-                      label="Email"
-                      type="email"
-                      placeholder="Enter your email"
-                      {...createFieldProps(form.register, form.formState.errors, 'email')}
-                    />
-                  </div>
-                  
-                  <DialogFooter>
-                    <Button type="submit" disabled={form.formState.isSubmitting}>
-                      Submit Demo
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <div className="flex items-center space-x-3">
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/login">Sign In</Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/wizard">Get Started</Link>
+              </Button>
+              {/* Demo Dialog Button */}
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Test UI Components
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <form onSubmit={form.handleSubmit(handleSubmit)}>
+                    <DialogHeader>
+                      <DialogTitle>UI Components Demo</DialogTitle>
+                      <DialogDescription>
+                        Testing our Button, Input, and Dialog components with React Hook Form + Zod validation.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                      <Input
+                        label="Name"
+                        placeholder="Enter your name"
+                        {...createFieldProps(form.register, form.formState.errors, 'name')}
+                      />
+                      <Input
+                        label="Email"
+                        type="email"
+                        placeholder="Enter your email"
+                        {...createFieldProps(form.register, form.formState.errors, 'email')}
+                      />
+                    </div>
+                    
+                    <DialogFooter>
+                      <Button type="submit" disabled={form.formState.isSubmitting}>
+                        Submit Demo
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </div>
       </header>
@@ -159,7 +167,7 @@ export default function HomePage() {
               </Button>
               <span className="text-border">•</span>
               <Button variant="link" asChild>
-                <Link href="/wizard">How it Works</Link>
+                <Link href="/login">Sign In</Link>
               </Button>
             </div>
           </div>
